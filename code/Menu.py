@@ -21,8 +21,8 @@ class Menu:
         while True:
             #DESENHAR NA TELA
             self.window.blit(source=self.surf, dest=self.rect)
-            self.menu_text(50, "STAR", COLOR_VIOLET, ((WIN_WIDTH / 2), 70))
-            self.menu_text(50, "BOY", COLOR_VIOLET, ((WIN_WIDTH / 2), 120))
+            self.menu_text(50, "THE", COLOR_VIOLET, ((WIN_WIDTH / 2), 70))
+            self.menu_text(50, "VOID", COLOR_VIOLET, ((WIN_WIDTH / 2), 120))
 
             for i  in range(len(MENU_OPTIONS)):
                 if i == menu_option:
