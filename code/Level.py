@@ -6,7 +6,7 @@ from pygame import Surface, Rect
 from pygame.font import Font
 
 from code.Const import COLOR_WHITE, MENU_OPTIONS, EVENT_ENEMY, EVENT_TIMEOUT, COLOR_VIOLET, COLOR_YELLOW, WIN_HEIGHT, \
-    COLOR_CYAN, COLOR_GREEN
+    COLOR_CYAN, COLOR_GREEN, PLAYER_KEY_SHOOT
 from code.Enemy import Enemy
 from code.Entity import Entity
 from code.EntityFactory import EntityFactory
@@ -62,14 +62,24 @@ class Level:
                                 player_score[1] = ent.score
                         return True
 
-                found_player = False
-                for ent in self.entity_list:
-                    if isinstance(ent, Player):
-                        found_player = True
-                if not found_player:
-                    return False
+            # Gerenciamento de vidas do Player (se a saúde zerar mas ainda tiver vidas)
+            found_player = False
+            for ent in self.entity_list[:]:
+                if isinstance(ent, Player):
+                    found_player = True
+                    if ent.health <= 0 and not ent.is_exploding:
+                        if ent.lives > 0:
+                            ent.lives -= 1              # Perde 1 vida
+                            ent.health = 100            # Restaura a saúde
+                            ent.invincible_timer = 120  # 1.5 a 2 segundos de imunidade
+                            ent.rect.center = (100, WIN_HEIGHT / 2)  # Reseta posição
+                        else:
+                            return False  # Acabaram as vidas -> Game Over
 
-            # Limpar entidades com saúde zero (ou gerenciar estados de explosão)
+            if not found_player:
+                return False
+
+            # Limpar entidades com saúde zero ou gerenciar animações de explosão
             EntityMediator.verify_health(self.entity_list)
 
             # Verificar colisões
@@ -82,27 +92,48 @@ class Level:
                     if ent.is_exploding:
                         num_frame = ent.explosion_index // 4
                         if num_frame < len(ent.explosion_surf_list):
-                            # Salva o centro da nave para alinhar o sprite da explosão perfeitamente
                             center = ent.rect.center
                             ent.surf = ent.explosion_surf_list[num_frame]
                             ent.rect = ent.surf.get_rect(center=center)
                         ent.explosion_index += 1
                     else:
-                        ent.move()
-                        if isinstance(ent, (Player, Enemy)):
+                        # Se for inimigo, persegue o player; senão, movimento normal
+                        if isinstance(ent, Enemy):
+                            player_pos = None
+                            for e in self.entity_list:
+                                if isinstance(e, Player):
+                                    player_pos = e.rect.center
+                                    break
+                            ent.move(player_pos)
+                        else:
+                            ent.move()
+
+                        # Disparo seguro para Inimigos e Players (respeitando o delay)
+                        if isinstance(ent, Enemy):
                             shoot = ent.shoot()
                             if shoot is not None:
                                 self.entity_list.append(shoot)
+                        elif isinstance(ent, Player):
+                            pressed_key = pygame.key.get_pressed()
+                            if pressed_key[PLAYER_KEY_SHOOT[ent.name]]:
+                                shoot = ent.shoot()
+                                if shoot is not None:
+                                    self.entity_list.append(shoot)
 
-                    # Desenha a entidade na tela
-                    self.window.blit(source=ent.surf, dest=ent.rect)
+                    # Desenha a entidade na tela (com efeito de piscar se estiver invencível)
+                    if isinstance(ent, Player) and ent.invincible_timer > 0:
+                        if (ent.invincible_timer // 10) % 2 == 0:  # Pisca a cada 10 frames
+                            self.window.blit(source=ent.surf, dest=ent.rect)
+                    else:
+                        self.window.blit(source=ent.surf, dest=ent.rect)
 
+                    # Placar e informações na tela
                     if ent.name == 'player1':
-                        self.level_text(14, f'Player 1 health: {ent.health}| Score: {ent.score}', COLOR_CYAN, (140, 10))
+                        self.level_text(14, f'P1 HP: {ent.health} | Lives: {ent.lives} | Score: {ent.score}', COLOR_CYAN, (180, 10))
                     if ent.name == 'player2':
-                        self.level_text(14, f'Player 2 health: {ent.health}| Score: {ent.score}', COLOR_VIOLET, (143, 30))
+                        self.level_text(14, f'P2 HP: {ent.health} | Lives: {ent.lives} | Score: {ent.score}', COLOR_VIOLET, (180, 30))
 
-            # Texto a ser exibido na tela
+            # Texto a ser exibido na tela (Timeout)
             self.level_text(14, f'{self.name} - timeout: {self.timeout / 1000}s', COLOR_WHITE, (100, 300))
 
             # Atualizar tela
